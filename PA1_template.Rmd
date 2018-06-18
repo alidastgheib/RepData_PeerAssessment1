@@ -7,19 +7,118 @@ output:
 
 
 ## Loading and preprocessing the data
-
-
+### Loading the data
+```{r, echo = TRUE}
+code_dir = "C:/Users/Ali_D/Desktop/D_S/my_codes/Reproducible Research/w2"; setwd(code_dir)
+my_ds_orig <- read.csv("activity.csv"); my_ds = my_ds_orig
+```
+### Processing/Transforming the data 
+```{r, echo = TRUE}
+my_ds$date = as.Date(my_ds$date)
+my_ds$month = as.numeric(format(my_ds$date, format = "%m"))
+my_ds$day = as.numeric(format(my_ds$date, format = "%d"))
+my_ds$dayPlusMonth = my_ds$day + my_ds$month
+```
 
 ## What is mean total number of steps taken per day?
-
-
+### Making a histogram of the total number of steps taken each day
+```{r, echo = TRUE}
+total_steps = aggregate(formula =  steps ~ dayPlusMonth, 
+                        data = my_ds, FUN = sum, na.action = na.omit)
+barplot(total_steps$steps, beside = TRUE, xlab = "Day's Number", ylab = "Total Steps",
+        main = "Total Steps per Each Day",
+        names.arg = total_steps$dayPlusMonth - total_steps$dayPlusMonth[1] + 1)
+grid(); dev.off()
+```
+### "Mean"" and "median" of the total number of steps taken per day
+```{r, echo = TRUE}
+steps_summary = summary(total_steps$steps);
+steps_mean = as.numeric(steps_summary["Mean"]); 
+names(steps_mean) = "steps_mean"; 
+steps_median = as.numeric(steps_summary["Median"]); 
+names(steps_median) = "steps_median"; 
+as.data.frame(c(steps_mean, steps_median))
+```
 
 ## What is the average daily activity pattern?
-
-
+### Making a time-series plot 
+```{r, echo = TRUE}
+mean_steps = aggregate(formula =  steps ~ interval, 
+                        data = my_ds, FUN = mean, na.action = na.omit)
+plot(x = mean_steps$interval, y = mean_steps$steps, type = "l",
+     xlab = "Interval (min)", ylab = "Steps' Mean Across All Days", 
+     main = "Average Daily Activity Pattern")
+grid(); dev.off()
+```
+###  Maximum number of steps --> Which 5-minute interval?
+```{r, echo = TRUE}
+int_for_max_steps = mean_steps$interval[which.max(mean_steps$steps)];
+names(int_for_max_steps) = "interval containing maximum steps across all the days in the dataset"
+int_for_max_steps
+```
 
 ## Imputing missing values
-
-
+###  Total number of missing values in the dataset (i.e. the total number of rows with NAs)
+```{r, echo = TRUE}
+logic_ds = is.na.data.frame(my_ds_orig)
+and_res = logic_ds[, 1] | logic_ds[, 2] | logic_ds[, 3]
+numOfNA_row = sum(and_res); names(numOfNA_row) = "Total number of missing values"; numOfNA_row
+```
+### Filling in all of the missing values 
+### (Replacing with: the mean for that 5-minute interval)
+```{r, echo = TRUE}
+my_ds_imp = my_ds_orig; NA_index = which(logic_ds[,1])
+for (idx in NA_index){
+  idx_invl = my_ds_orig$interval[idx]
+  newSteps = mean_steps$steps[which(idx_invl == mean_steps$interval)]
+  my_ds_imp$steps[idx] = newSteps
+}
+```
+### Creating a new dataset
+```{r, echo = TRUE}
+str(my_ds_imp)
+write.csv(my_ds_imp, "activity_Imputed.csv")
+```
+### Making a histogram and calculating the mean and median
+### (Repeating the first problem with imputed dataset)
+```{r, echo = TRUE}
+my_ds_imp$date = as.Date(my_ds_imp$date)
+my_ds_imp$month = as.numeric(format(my_ds_imp$date, format = "%m"))
+my_ds_imp$day = as.numeric(format(my_ds_imp$date, format = "%d"))
+my_ds_imp$dayPlusMonth = my_ds_imp$day + my_ds_imp$month
+total_steps2 = aggregate(formula =  steps ~ dayPlusMonth, 
+                         data = my_ds_imp, FUN = sum, na.action = na.omit)
+barplot(total_steps2$steps, beside = TRUE, xlab = "Day's Number", ylab = "Total Steps",
+        main = "Total Steps per Each Day",
+        names.arg = total_steps2$dayPlusMonth - total_steps2$dayPlusMonth[1] + 1)
+grid(); dev.off()
+steps_summary2 = summary(total_steps2$steps);
+steps_mean2 = as.numeric(steps_summary2["Mean"]); names(steps_mean2) = "steps_mean_imputed"; 
+steps_median2 = as.numeric(steps_summary2["Median"]); names(steps_median2) = "steps_median_imputed"; 
+as.data.frame(c(steps_mean2, steps_median2))
+```
+### Note: Imputing missing data, by replacing NAs with the mean
+### of each interval, causes mean and median to increase almost 11%.
+```{r, echo = FALSE}
+as.data.frame(c(steps_mean, steps_median))
+as.data.frame(c(steps_mean2, steps_median2))
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+### Creating a new factor variable
+```{r, echo = TRUE}
+my_ds_imp$date = as.Date(my_ds_imp$date)
+week_info  = weekdays(my_ds_imp$date)
+weekend_idx = which(week_info == "Saturday" | week_info == "Sunday")
+my_ds_imp$weekend = "Weekday" ; my_ds_imp$weekend[weekend_idx] = "Weekend"
+my_ds_imp$weekend = as.factor(my_ds_imp$weekend)
+```
+### Making a panel plot
+```{r, echo = TRUE}
+mean_steps2 = aggregate(formula =  steps ~ interval + weekend, 
+                       data = my_ds_imp, FUN = mean, na.action = na.omit)
+require(ggplot2)
+multi_plot <- ggplot(mean_steps2, aes(interval, steps)) + geom_line()
+multi_plot + facet_wrap(~weekend, nrow = 2) + 
+  ggtitle("Average Daily Activity Comparison (weekday vs. Weekend)")
+```
